@@ -6,6 +6,7 @@ import SitePicker from '@/components/common/SitePicker'
 import { usePersistentStore } from '@/hooks/usePersistentStore'
 import { specimenStore } from '@/stores/specimenStore'
 import { siteStore } from '@/stores/siteStore'
+import { numberingStore } from '@/stores/numberingStore'
 import { allocateSpecimenCode, isDuplicateCode } from '@/utils/codec'
 import { uid } from '@/utils/id'
 
@@ -43,6 +44,7 @@ const newDraft = (): DraftRow => ({
 export default function CollectPage(): JSX.Element {
   const sites = usePersistentStore(siteStore, (state) => state.rows)
   const specimens = usePersistentStore(specimenStore, (state) => state.rows)
+  const retired = usePersistentStore(numberingStore, (state) => state.retired)
 
   const [siteId, setSiteId] = useState('')
   const [collectDate, setCollectDate] = useState(new Date().toISOString().slice(0, 10))
@@ -55,9 +57,9 @@ export default function CollectPage(): JSX.Element {
   const site = sites.find((item) => item.id === siteId)
   const year = collectDate.slice(0, 4) || String(new Date().getFullYear())
 
-  /** 每行自动生成互不冲突的标本编号（采集地代码-年份-流水号） */
+  /** 每行自动生成互不冲突的标本编号（采集地代码-年份-流水号），避开在册编号与已注销旧号 */
   const codes = useMemo(() => {
-    const existing = specimens.map((item) => item.code)
+    const existing = [...specimens.map((item) => item.code), ...retired.map((item) => item.code)]
     const reserved: string[] = []
     const result: Record<string, string> = {}
     drafts.forEach((draft) => {
@@ -67,7 +69,7 @@ export default function CollectPage(): JSX.Element {
     })
     return result
     // drafts 的字段变化不影响编号分配，仅行数与采集地/年份影响
-  }, [drafts.length, drafts, site?.code, year, specimens])
+  }, [drafts.length, drafts, site?.code, year, specimens, retired])
 
   const patchDraft = (id: string, patch: Partial<DraftRow>): void => {
     setDrafts((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)))
@@ -88,9 +90,11 @@ export default function CollectPage(): JSX.Element {
       setError(`批次内编号重复：${duplicated.join('、')}`)
       return
     }
-    const clash = codesInBatch.find((code) => isDuplicateCode(code, specimens.map((item) => item.code)))
+    const clash = codesInBatch.find((code) =>
+      isDuplicateCode(code, [...specimens.map((item) => item.code), ...retired.map((item) => item.code)])
+    )
     if (clash) {
-      setError(`编号 ${clash} 已存在，请调整采集地或年份`)
+      setError(`编号 ${clash} 已在册或已注销，请调整采集地或年份`)
       return
     }
     if (drafts.some((row) => !row.order.trim())) {
@@ -129,7 +133,7 @@ export default function CollectPage(): JSX.Element {
       <header>
         <h1 className="page-title">采集登记</h1>
         <p className="page-sub">
-          选择采集地后自动带出生境与小生境；支持一次提交多条同批次标本，编号按「采集地代码-年份-流水号」自动生成并查重。
+          选择采集地后自动带出生境与小生境；支持一次提交多条同批次标本，编号按「采集地代码-年份-流水号」自动生成，与在册编号和已注销旧号查重。
         </p>
       </header>
 

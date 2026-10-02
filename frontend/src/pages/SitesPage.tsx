@@ -89,9 +89,30 @@ export default function SitesPage(): JSX.Element {
       dateStart: form.dateStart,
       dateEnd: form.dateEnd
     }
-    await siteStore.getState().save(row)
-    setMessage(form.id ? `采集地「${row.name}」已更新` : `采集地「${row.name}」已建立`)
-    setForm(EMPTY_FORM)
+    try {
+      const result = await siteStore.getState().save(row)
+      const parts = [form.id ? `采集地「${row.name}」已更新` : `采集地「${row.name}」已建立`]
+      if (result.renumbered.length > 0) {
+        const sample = result.renumbered
+          .slice(0, 3)
+          .map((change) => `${change.oldCode} → ${change.newCode}`)
+          .join('、')
+        parts.push(
+          `已按新前缀重编 ${result.renumbered.length} 份在册标本（${sample}${result.renumbered.length > 3 ? ' 等' : ''}），旧号已注销、发新号时会避开`
+        )
+      }
+      if (result.adopted > 0) {
+        parts.push(`已撤采集地留下的 ${result.adopted} 份历史标本已按 ${row.code} 前缀回填到本采集地`)
+      }
+      setMessage(parts.join('；'))
+      setForm(EMPTY_FORM)
+    } catch (err) {
+      setError(
+        `保存失败，采集地档案与标本清单均已回滚到改动前，可修正后重试：${
+          err instanceof Error ? err.message : String(err)
+        }`
+      )
+    }
   }
 
   const edit = (site: CollectSite): void => {
@@ -123,9 +144,19 @@ export default function SitesPage(): JSX.Element {
   }
 
   const mergeInto = async (source: CollectSite, target: CollectSite): Promise<void> => {
-    const moved = await siteStore.getState().mergeSite(source.id, target.id)
-    await specimenStore.getState().hydrate()
-    setMessage(`已把「${source.name}」的 ${moved} 份标本合并到「${target.name}」，并删除原采集地`)
+    try {
+      const result = await siteStore.getState().mergeSite(source.id, target.id)
+      setMessage(
+        `已把「${source.name}」的 ${result.moved} 份标本合并到「${target.name}」，` +
+          `其中 ${result.renumbered} 份编号已按 ${target.code} 前缀回填（旧号已注销），原采集地已删除`
+      )
+    } catch (err) {
+      setError(
+        `合并失败，采集地档案与标本清单均已回滚到改动前，可修正后重试：${
+          err instanceof Error ? err.message : String(err)
+        }`
+      )
+    }
   }
 
   const nearestOther = (site: CollectSite): { site: CollectSite; distance: number } | null => {
@@ -138,13 +169,13 @@ export default function SitesPage(): JSX.Element {
       <header>
         <h1 className="page-title">采集地管理</h1>
         <p className="page-sub">
-          坐标输入带经纬度格式校验；同坐标 50 米内的记录会提示合并为同一采集地，合并时标本会自动改挂。
+          坐标输入带经纬度格式校验；同坐标 50 米内的记录会提示合并为同一采集地。改动代码或合并时，在册标本编号按新前缀自动重编，旧号注销不再发出。
         </p>
       </header>
 
       <section className="panel grid gap-3 md:grid-cols-3">
         <div>
-          <span className="field-label">采集地代码（用于标本编号前缀）</span>
+          <span className="field-label">采集地代码（编号前缀，改动后在册标本自动重编）</span>
           <input className="field-input" value={form.code} onChange={(e) => patch({ code: e.target.value })} placeholder="如 QLB" />
         </div>
         <div>
