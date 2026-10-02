@@ -17,6 +17,19 @@ export function isDuplicateCode(code: string, existing: string[]): boolean {
   return existing.some((item) => item.trim().toUpperCase() === code.trim().toUpperCase())
 }
 
+/**
+ * 汇总所有已占用编号：每份标本的在册编号 + 曾用编号（formerCodes）。
+ * 改代码 / 合并撤站换下的旧号永久留存，发新号时一并避开，保证编号唯一、永不重号。
+ */
+export function collectUsedCodes(specimens: { code: string; formerCodes?: string[] }[]): string[] {
+  const used: string[] = []
+  for (const specimen of specimens) {
+    used.push(specimen.code)
+    for (const former of specimen.formerCodes ?? []) used.push(former)
+  }
+  return used
+}
+
 /** 依据已有序号生成下一个流水号 */
 export function nextSerial(siteCode: string, year: number | string, existingCodes: string[]): number {
   const serials = existingCodes

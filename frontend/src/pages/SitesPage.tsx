@@ -89,8 +89,18 @@ export default function SitesPage(): JSX.Element {
       dateStart: form.dateStart,
       dateEnd: form.dateEnd
     }
-    await siteStore.getState().save(row)
-    setMessage(form.id ? `采集地「${row.name}」已更新` : `采集地「${row.name}」已建立`)
+    // 代码前缀变更：采集地档案与在册编号两边各自维护，改代码时按在册标本重编编号
+    const prev = form.id ? sites.find((site) => site.id === form.id) : undefined
+    const codeChanged = !!prev && prev.code.toUpperCase() !== row.code
+    if (codeChanged) {
+      const renumbered = await siteStore.getState().renumberSiteCode(row)
+      setMessage(
+        `采集地「${row.name}」已更新，代码由 ${prev?.code} 改为 ${row.code}，${renumbered} 份在册标本已按新前缀重编`
+      )
+    } else {
+      await siteStore.getState().save(row)
+      setMessage(form.id ? `采集地「${row.name}」已更新` : `采集地「${row.name}」已建立`)
+    }
     setForm(EMPTY_FORM)
   }
 

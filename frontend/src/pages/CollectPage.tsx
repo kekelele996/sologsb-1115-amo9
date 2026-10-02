@@ -6,7 +6,7 @@ import SitePicker from '@/components/common/SitePicker'
 import { usePersistentStore } from '@/hooks/usePersistentStore'
 import { specimenStore } from '@/stores/specimenStore'
 import { siteStore } from '@/stores/siteStore'
-import { allocateSpecimenCode, isDuplicateCode } from '@/utils/codec'
+import { allocateSpecimenCode, collectUsedCodes, isDuplicateCode } from '@/utils/codec'
 import { uid } from '@/utils/id'
 
 interface DraftRow {
@@ -55,9 +55,9 @@ export default function CollectPage(): JSX.Element {
   const site = sites.find((item) => item.id === siteId)
   const year = collectDate.slice(0, 4) || String(new Date().getFullYear())
 
-  /** 每行自动生成互不冲突的标本编号（采集地代码-年份-流水号） */
+  /** 每行自动生成互不冲突的标本编号（采集地代码-年份-流水号）；现号与曾用号都不重发 */
   const codes = useMemo(() => {
-    const existing = specimens.map((item) => item.code)
+    const existing = collectUsedCodes(specimens)
     const reserved: string[] = []
     const result: Record<string, string> = {}
     drafts.forEach((draft) => {
@@ -88,9 +88,9 @@ export default function CollectPage(): JSX.Element {
       setError(`批次内编号重复：${duplicated.join('、')}`)
       return
     }
-    const clash = codesInBatch.find((code) => isDuplicateCode(code, specimens.map((item) => item.code)))
+    const clash = codesInBatch.find((code) => isDuplicateCode(code, collectUsedCodes(specimens)))
     if (clash) {
-      setError(`编号 ${clash} 已存在，请调整采集地或年份`)
+      setError(`编号 ${clash} 已存在或为历史曾用号，请调整采集地或年份`)
       return
     }
     if (drafts.some((row) => !row.order.trim())) {

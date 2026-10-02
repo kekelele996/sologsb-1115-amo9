@@ -20,8 +20,13 @@ export const ORDERS = ['鞘翅目', '鳞翅目', '膜翅目', '双翅目', '半�
 /** Specimen 标本 */
 export interface Specimen {
   id: string
-  /** 标本编号：采集地代码-年份-流水号 */
+  /** 在册编号：采集地代码-年份-流水号，随采集地代码变更/合并而重编 */
   code: string
+  /**
+   * 曾用编号：改代码或合并撤站后换下的旧号。
+   * 旧号永久留存，发新号时一并避开，保证编号唯一、永不重号。
+   */
+  formerCodes?: string[]
   order: string
   family: string
   genus: string
